@@ -709,13 +709,13 @@
       <aside id="importPanel">
         <div class="panel-card">
           <h3>Import an invoice</h3>
-          <p class="hint">Drop in a PDF of an old invoice and its details will be read into the editor.</p>
-          <div id="dropzone" tabindex="0" role="button" aria-label="Import a PDF invoice">
+          <p class="hint">Add a PDF <strong>or a photo</strong> of an invoice and its details will be read into the editor.</p>
+          <div id="dropzone" tabindex="0" role="button" aria-label="Import an invoice PDF or photo">
             <span class="dz-glyph">✒</span>
-            <span class="dz-main" id="dzMain">Drop a PDF here</span>
+            <span class="dz-main" id="dzMain">Drop a PDF or photo here</span>
             <div class="dz-sub">or click to browse</div>
           </div>
-          <input type="file" id="pdfFile" accept="application/pdf,.pdf" hidden>
+          <input type="file" id="pdfFile" accept="application/pdf,.pdf,image/*" hidden>
           <div class="import-note" id="importNote">
             Check the imported fields — extraction is best-effort. Anything missed is in the text below, ready to copy.
           </div>
@@ -1549,7 +1549,7 @@ el.dropzone.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key==
 el.pdfFile.addEventListener('change', function(){
   var f = el.pdfFile.files[0];
   el.pdfFile.value = '';
-  if(f) importPdfFile(f);
+  if(f) importAnyFile(f);
 });
 ['dragover','dragenter'].forEach(function(ev){
   el.dropzone.addEventListener(ev, function(e){ e.preventDefault(); el.dropzone.classList.add('over'); });
@@ -1559,8 +1559,8 @@ el.pdfFile.addEventListener('change', function(){
 });
 el.dropzone.addEventListener('drop', function(e){
   var f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if(f && (/\.pdf$/i.test(f.name) || f.type === 'application/pdf')) importPdfFile(f);
-  else toast('Please drop a PDF file', true);
+  if(f && (isPdf(f) || isImage(f))) importAnyFile(f);
+  else toast('Please drop a PDF or a photo', true);
 });
 
 function importPdfFile(file){
@@ -1569,26 +1569,177 @@ function importPdfFile(file){
   el.importWarn.hidden = true;
   el.importSeller.hidden = true;
   pendingSeller = null;
+  var keep = null;
   file.arrayBuffer().then(function(buf){
+    keep = buf.slice(0);
     return extractPdf(buf);
   }).then(function(lines){
-    var display = lines.map(function(L){
-      return L.segs.map(function(sg){ return sg.text; }).join('   |   ');
-    }).join('\n').replace(/\n{3,}/g,'\n\n').trim();
-    el.extractCard.hidden = false;
-    el.extractText.textContent = display || '(no selectable text found — this PDF may be a scan)';
-    el.importNote.classList.add('show');
-    if(display){
-      var parsed = parseInvoiceText(lines);
-      applyParsed(parsed);
-      toast('Imported — check the prefilled fields');
-    }else{
-      toast('No text layer in that PDF (scanned image?) — nothing to prefill', true);
-    }
+    if(linesToDisplay(lines)) return finishImport(lines, false);
+    /* no text layer: a scanned PDF — render the pages and read them like a photo */
+    el.dropzone.classList.add('busy');
+    return ocrPdfPages(keep).then(function(lines2){ finishImport(lines2, true); });
   }).catch(function(err){
     console.error('PDF import failed', err);
     resetDropzone();
     toast('Could not read that PDF — ' + (err && err.message ? err.message : 'unknown error'), true);
+  });
+}
+
+function isPdf(f){ return /\.pdf$/i.test(f.name) || f.type === 'application/pdf'; }
+function isImage(f){ return /^image\//i.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(f.name); }
+function importAnyFile(f){
+  if(isPdf(f)) importPdfFile(f);
+  else if(isImage(f)) importImageFile(f);
+  else toast('Please choose a PDF or a photo', true);
+}
+function linesToDisplay(lines){
+  return lines.map(function(L){
+    return L.segs.map(function(sg){ return sg.text; }).join('   |   ');
+  }).join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function finishImport(lines, fromOcr){
+  resetDropzone();
+  var display = linesToDisplay(lines);
+  el.extractCard.hidden = false;
+  el.extractText.textContent = display || '(no text could be read)';
+  el.importNote.textContent = fromOcr
+    ? 'Read from an image — photos are harder to read than PDFs, so check every field, especially numbers. Anything missed is in the text below, ready to copy.'
+    : 'Check the imported fields — extraction is best-effort. Anything missed is in the text below, ready to copy.';
+  el.importNote.classList.add('show');
+  if(display){
+    applyParsed(parseInvoiceText(lines));
+    toast('Imported — check the prefilled fields');
+  }else{
+    toast(fromOcr ? 'Could not read any text — try a sharper, flatter photo' : 'No text found in that file', true);
+  }
+}
+
+/* ============================================================
+   PHOTO IMPORT — on-device OCR with Tesseract.js (loaded on first use,
+   files served from ./ocr next to this page; nothing leaves the device)
+   ============================================================ */
+var ocrWorkerP = null;
+function loadScript(src){
+  return new Promise(function(res, rej){
+    var sc = document.createElement('script');
+    sc.src = src; sc.onload = res; sc.onerror = function(){ rej(new Error('could not load ' + src)); };
+    document.head.appendChild(sc);
+  });
+}
+function ocrProgress(m){
+  if(m && m.status === 'recognizing text') el.dzMain.textContent = 'Reading text… ' + Math.round((m.progress || 0) * 100) + '%';
+  else if(m && /load|initializ/i.test(m.status || '')) el.dzMain.textContent = 'Getting the text reader ready…';
+}
+function getOcrWorker(){
+  if(ocrWorkerP) return ocrWorkerP;
+  var base = new URL('ocr/', location.href).href;
+  ocrWorkerP = (window.Tesseract ? Promise.resolve() : loadScript('ocr/tesseract.min.js')).then(function(){
+    return Tesseract.createWorker('eng', 1, {
+      workerPath: base + 'worker.min.js',
+      corePath: base,
+      langPath: base.replace(/\/$/, ''),
+      logger: ocrProgress
+    });
+  }).then(function(w){
+    return w.setParameters({ preserve_interword_spaces: '1' }).then(function(){ return w; });
+  });
+  ocrWorkerP.catch(function(){ ocrWorkerP = null; });
+  return ocrWorkerP;
+}
+/* draw the image onto a canvas: EXIF orientation respected, sized for OCR, greyscale */
+function imageToCanvas(file){
+  return new Promise(function(res, rej){
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var sc = Math.min(2400 / Math.max(w, h), Math.max(1, 1600 / w));
+      var cv = document.createElement('canvas');
+      cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.filter = 'grayscale(1) contrast(1.25)';
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      res(cv);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('this image format could not be opened — try a JPEG or PNG')); };
+    img.src = url;
+  });
+}
+/* Turn OCR words into the same [{y, segs:[{x,text}], text}] rows the PDF
+   extractor makes: words regrouped into visual rows across the whole page
+   (so side-by-side columns line up), x scaled to PDF points (A4 = 595 wide),
+   and each row split into column segments at wide gaps. */
+function ocrToLines(data, pageW, yOffset){
+  var k = 595 / pageW, words = [];
+  (data.words || []).forEach(function(w){
+    var t = (w.text || '').trim();
+    if(!t || w.confidence < 15) return;
+    words.push({ x0:w.bbox.x0 * k, x1:w.bbox.x1 * k, y0:w.bbox.y0 * k, y1:w.bbox.y1 * k, t:t });
+  });
+  if(!words.length) return [];
+  var hs = words.map(function(w){ return w.y1 - w.y0; }).sort(function(a,b){ return a-b; });
+  var medH = hs[Math.floor(hs.length / 2)] || 8;
+  words.sort(function(a,b){ return (a.y0 + a.y1) - (b.y0 + b.y1); });
+  var rows = [];
+  words.forEach(function(w){
+    var yc = (w.y0 + w.y1) / 2, row = rows.length ? rows[rows.length - 1] : null;
+    if(row && Math.abs(row.yc - yc) <= medH * 0.55){ row.ws.push(w); row.yc = (row.yc * (row.ws.length - 1) + yc) / row.ws.length; }
+    else rows.push({ yc:yc, ws:[w] });
+  });
+  return rows.map(function(row){
+    row.ws.sort(function(a,b){ return a.x0 - b.x0; });
+    var segs = [], cur = null, end = 0;
+    row.ws.forEach(function(w){
+      var charW = Math.max(2, (w.x1 - w.x0) / w.t.length);
+      if(cur && w.x0 - end > Math.max(14, charW * 3.2)){ segs.push(cur); cur = null; }
+      if(cur) cur.text += ' ' + w.t; else cur = { x:w.x0, text:w.t };
+      end = w.x1;
+    });
+    if(cur) segs.push(cur);
+    return { y: -(row.yc + (yOffset || 0)), segs: segs, text: segs.map(function(sg){ return sg.text; }).join(' ') };
+  });
+}
+function importImageFile(file){
+  el.dropzone.classList.add('busy');
+  el.dzMain.textContent = 'Opening photo…';
+  el.importWarn.hidden = true;
+  el.importSeller.hidden = true;
+  pendingSeller = null;
+  Promise.all([imageToCanvas(file), getOcrWorker()]).then(function(r){
+    var cv = r[0], worker = r[1];
+    el.dzMain.textContent = 'Reading text…';
+    return worker.recognize(cv).then(function(res){ return ocrToLines(res.data, cv.width, 0); });
+  }).then(function(lines){
+    finishImport(lines, true);
+  }).catch(function(err){
+    console.error('Photo import failed', err);
+    resetDropzone();
+    toast('Could not read that photo — ' + (err && err.message ? err.message : 'unknown error'), true);
+  });
+}
+/* scanned PDF: render up to 3 pages and OCR them */
+function ocrPdfPages(buf){
+  return Promise.all([pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise, getOcrWorker()]).then(function(r){
+    var doc = r[0], worker = r[1], all = [], chain = Promise.resolve();
+    for(var p = 1; p <= Math.min(doc.numPages, 3); p++){
+      (function(pn){
+        chain = chain.then(function(){ return doc.getPage(pn); }).then(function(page){
+          var vp0 = page.getViewport({ scale: 1 });
+          var vp = page.getViewport({ scale: Math.min(3, 2200 / vp0.width) });
+          var cv = document.createElement('canvas');
+          cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+          var ctx = cv.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){ return worker.recognize(cv); })
+            .then(function(res){
+              all = all.concat(ocrToLines(res.data, cv.width, pn * 100000));
+              all.push({ y: null, segs: [], text: '' });
+            });
+        });
+      })(p);
+    }
+    return chain.then(function(){ return all; });
   });
 }
 
@@ -1662,7 +1813,7 @@ function resetDropzone(){
   el.dropzone.classList.remove('busy');
   el.dzMain.textContent = DZ_TEXT;
 }
-var DZ_TEXT = (window.matchMedia && matchMedia('(hover:none)').matches) ? 'Tap to choose a PDF' : 'Drop a PDF here';
+var DZ_TEXT = (window.matchMedia && matchMedia('(hover:none)').matches) ? 'Tap to choose a PDF or photo' : 'Drop a PDF or photo here';
 el.dzMain.textContent = DZ_TEXT;
 
 var MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
