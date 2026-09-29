@@ -1709,7 +1709,7 @@ function importImageFile(file){
   Promise.all([imageToCanvas(file), getOcrWorker()]).then(function(r){
     var cv = r[0], worker = r[1];
     el.dzMain.textContent = 'Reading text…';
-    return worker.recognize(cv).then(function(res){ return ocrToLines(res.data, cv.width, 0); });
+    return worker.recognize(cv, { rotateAuto: true }).then(function(res){ return ocrToLines(res.data, cv.width, 0); });
   }).then(function(lines){
     finishImport(lines, true);
   }).catch(function(err){
@@ -1731,7 +1731,7 @@ function ocrPdfPages(buf){
           cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
           var ctx = cv.getContext('2d');
           ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){ return worker.recognize(cv); })
+          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){ return worker.recognize(cv, { rotateAuto: true }); })
             .then(function(res){
               all = all.concat(ocrToLines(res.data, cv.width, pn * 100000));
               all.push({ y: null, segs: [], text: '' });
