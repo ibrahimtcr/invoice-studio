@@ -444,6 +444,33 @@
   .company-bar .btn{padding:6px 11px;font-size:12px}
   .sync-state{font-size:10.5px;color:var(--ink-faint);flex:none}
 
+  /* ---------- Copied design editor ---------- */
+  #copyView{flex:0 1 900px;width:900px;max-width:100%;display:flex;flex-direction:column;gap:12px;animation:sheetIn .4s cubic-bezier(.22,.9,.3,1) both}
+  .copy-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft)}
+  .copy-head label{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--wax)}
+  .copy-head input{flex:1;min-width:160px;font-family:var(--sans);font-size:13px;padding:6px 8px;border:1px solid var(--hairline);border-radius:5px;background:var(--sheet);color:var(--ink)}
+  .copy-hint{font-size:11.5px;color:var(--ink-faint);line-height:1.5}
+  #copyPages{display:flex;flex-direction:column;align-items:center;gap:18px;width:100%;padding-bottom:110px}
+  .copy-page{position:relative;background-color:#fff;background-size:100% 100%;background-repeat:no-repeat;box-shadow:var(--shadow-sheet);overflow:hidden}
+  .cbox{position:absolute;white-space:nowrap;padding:0;margin:0;outline:none;border-radius:2px;cursor:text;
+        -webkit-user-select:text;user-select:text}
+  .cbox:hover{box-shadow:0 0 0 1px rgba(15,118,110,.5)}
+  .cbox.sel{box-shadow:0 0 0 2px var(--wax);cursor:text}
+  .cover{position:absolute;pointer-events:none}
+  .cover.gone{pointer-events:auto;cursor:pointer;outline:1px dashed rgba(154,59,38,.6)}
+  #copyTools{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:70;width:min(760px,calc(100% - 20px));
+    background:var(--ink);color:#f2eedf;border-radius:10px;padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    box-shadow:0 10px 30px rgba(31,42,36,.4)
+  }
+  #copyTools input[type=text]{flex:1 1 220px;min-width:0;font-family:var(--sans);font-size:16px;padding:7px 9px;border-radius:6px;border:none;background:#fffdf6;color:var(--ink)}
+  #copyTools button{background:rgba(255,253,246,.1);color:#f2eedf;border:1px solid rgba(255,253,246,.22);border-radius:6px;padding:7px 9px;font-family:var(--sans);font-size:12.5px;cursor:pointer;min-width:34px}
+  #copyTools button:hover{background:rgba(255,253,246,.2)}
+  #copyTools button.on{background:var(--wax);border-color:var(--wax)}
+  #copyTools button.danger{color:#ffb3a1}
+  #copyTools input[type=color]{width:36px;height:32px;border:none;padding:0;background:none;cursor:pointer}
+  .inv-item.design .num{color:#bfe3dc}
+
   #btnMenu{display:none}
   #sideBack{display:none}
 
@@ -479,11 +506,16 @@
     #btnMenu{display:inline-flex}
     #topbar{flex-wrap:wrap;padding:10px 12px;gap:8px}
     .topbar-spacer{display:none}
-    .topbar-title{flex:1}
+    .topbar-title{flex:1;min-width:0}
+    .topbar-title .doc-num{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .save-state{display:none}
     #topbar .btn{padding:9px 11px;font-size:12.5px}
     #btnPdf{flex:1 1 100%;justify-content:center;padding:11px}
     #workspace{padding:12px 12px 80px;gap:12px}
     #importPanel{order:-1;width:100%}
+    #copyView{width:100%}
+    #copyTools{bottom:8px;padding:6px;gap:5px}
+    #copyTools button{padding:8px 8px}
     #dropzone{padding:18px 12px}
     #sheet{padding:26px 16px 22px}
     .company-bar{margin:-8px 0 18px}
@@ -555,6 +587,8 @@
         <option value="Sent">Sent</option>
         <option value="Paid">Paid</option>
       </select>
+      <button class="btn btn-outline" id="btnMode" title="Switch between your copied design and the standard invoice" hidden>Copied design</button>
+      <button class="btn btn-outline" id="btnAddText" title="Add a new piece of text to the page" hidden>＋ Text</button>
       <button class="btn btn-outline" id="btnDuplicate" title="Copy this invoice with a new number">Duplicate</button>
       <button class="btn btn-outline" id="btnPaid" title="Toggle paid status">Mark as paid</button>
       <button class="btn btn-primary" id="btnSave">Save</button>
@@ -562,6 +596,16 @@
     </header>
 
     <div id="workspace">
+
+      <!-- ============ COPIED DESIGN ============ -->
+      <section id="copyView" aria-label="Copied invoice design" hidden>
+        <div class="copy-head">
+          <label for="copyName">Name</label>
+          <input id="copyName" autocomplete="off" placeholder="Invoice name (used for the PDF file name)">
+        </div>
+        <p class="copy-hint">This is your invoice exactly as imported. Tap any text to change it — anything you don't touch stays exactly as the original. Drag a selected text's edge (or use the arrows) to move it.</p>
+        <div id="copyPages"></div>
+      </section>
 
       <!-- ============ THE SHEET ============ -->
       <section id="sheet" aria-label="Invoice editor">
@@ -735,6 +779,21 @@
 </div>
 
 <div id="sideBack"></div>
+<div id="copyTools" hidden>
+  <input type="text" id="toolText" aria-label="Selected text" autocomplete="off">
+  <button id="toolSmaller" title="Smaller">A−</button>
+  <button id="toolBigger" title="Bigger">A+</button>
+  <button id="toolBold" title="Bold"><b>B</b></button>
+  <input type="color" id="toolColour" title="Text colour">
+  <button id="toolAlign" title="Grow to the left or right when the text gets longer">Align ⇤</button>
+  <button id="toolLeft" title="Move left">←</button>
+  <button id="toolUp" title="Move up">↑</button>
+  <button id="toolDown" title="Move down">↓</button>
+  <button id="toolRight" title="Move right">→</button>
+  <button id="toolReset" title="Put the original text back">Undo</button>
+  <button id="toolDelete" class="danger" title="Remove this text">Remove</button>
+  <button id="toolDone" title="Close">Done</button>
+</div>
 <div id="toasts"></div>
 <div id="askBack" hidden>
   <div id="askBox" role="alertdialog" aria-modal="true" aria-labelledby="askMsg">
@@ -1046,6 +1105,12 @@ function renderInvoice(){
 }
 
 function renderTop(){
+  if(viewMode === 'copy' && copyDoc){
+    el.topNum.textContent = copyDoc.name || 'Copied invoice';
+    el.saveState.textContent = copyDirty ? 'edited' : 'saved';
+    if(document.activeElement !== $('copyName')) $('copyName').value = copyDoc.name || '';
+    return;
+  }
   el.topNum.textContent = inv.number || '—';
   el.sigNum.textContent = inv.number || '';
   el.saveState.textContent = inv.id ? (dirty ? 'edited' : 'saved') : 'unsaved';
@@ -1128,6 +1193,54 @@ function renderTotals(){
 }
 
 function renderSidebar(){
+  renderInvoiceList();
+  if(!designs.length) return;
+  var lab = document.createElement('div');
+  lab.className = 'list-label'; lab.textContent = 'Copied designs';
+  el.invList.appendChild(lab);
+  designs.forEach(function(d){
+    var div = document.createElement('div');
+    div.className = 'inv-item design' + (viewMode === 'copy' && copyDoc && copyDoc.id === d.id ? ' active' : '');
+    div.dataset.design = d.id;
+    div.innerHTML =
+      '<div class="row1"><span class="num"></span><span class="total"></span></div>' +
+      '<div class="row2"><span class="client"></span><span class="meta"><span class="date"></span></span></div>' +
+      '<span class="item-actions">' +
+        '<button class="mini-btn" data-ddup="' + d.id + '" title="Use again as a new copy">⧉</button>' +
+        '<button class="mini-btn danger" data-ddel="' + d.id + '" title="Delete">✕</button></span>';
+    div.querySelector('.num').textContent = d.name || 'Copied invoice';
+    div.querySelector('.total').textContent = (d.pages || []).length + ' pg';
+    div.querySelector('.client').textContent = 'Copied design';
+    div.querySelector('.date').textContent = fmtDateShort(new Date(d.updatedAt || Date.now()).toISOString().slice(0,10));
+    el.invList.appendChild(div);
+  });
+}
+el.invList.addEventListener('click', function(e){
+  var dd = e.target.closest('[data-ddel]'), du = e.target.closest('[data-ddup]'), it = e.target.closest('[data-design]');
+  if(!dd && !du && !it) return;
+  e.stopPropagation();
+  if(dd){
+    var vic = designs.find(function(d){ return d.id === dd.dataset.ddel; }); if(!vic) return;
+    askConfirm('Delete the copied design "' + (vic.name || '') + '"? This cannot be undone.', function(){
+      idbRun('readwrite', function(st){ return st.delete(vic.id); }).then(function(){
+        designs = designs.filter(function(d){ return d.id !== vic.id; });
+        if(copyDoc && copyDoc.id === vic.id){ copyDoc = null; setViewMode('standard'); }
+        renderSidebar(); toast('Design deleted');
+      });
+    });
+    return;
+  }
+  var src = designs.find(function(d){ return d.id === (du ? du.dataset.ddup : it.dataset.design); });
+  if(!src) return;
+  if(copyDirty) saveCopy(true);
+  if(du){
+    var c = JSON.parse(JSON.stringify(src));
+    c.id = newDesign().id; c.name = (src.name || 'Copied invoice') + ' (new)'; c.createdAt = c.updatedAt = Date.now();
+    openCopy(c); saveCopy(true); toast('New copy made — edit away');
+  }else openCopy(JSON.parse(JSON.stringify(src)));
+  document.body.classList.remove('menu-open');
+}, true);
+function renderInvoiceList(){
   el.invList.innerHTML = '<div class="list-label">Saved invoices</div>';
   if(!invoices.length){
     el.invList.innerHTML += '<div class="empty-list"><span class="glyph">—</span>Nothing filed yet.<br>Saved invoices appear here.</div>';
@@ -1425,11 +1538,12 @@ el.payTerms.addEventListener('input', function(){
 el.notes.addEventListener('input', function(){ inv.notes = el.notes.value; markDirty(); });
 
 /* ---------- topbar ---------- */
-$('btnSave').addEventListener('click', function(){ saveInvoice(false); });
+$('btnSave').addEventListener('click', function(){ if(viewMode === 'copy') saveCopy(false); else saveInvoice(false); });
 $('btnNew').addEventListener('click', function(){
   if(dirty) saveInvoice(true);
   inv = blankInvoice();
   dirty = false;
+  setViewMode('standard');
   renderInvoice(); renderSidebar();
   document.body.classList.remove('menu-open');
   toast('New invoice ' + inv.number);
@@ -1448,7 +1562,7 @@ $('btnDuplicate').addEventListener('click', function(){
   renderInvoice();
   toast('Duplicated as ' + inv.number);
 });
-$('btnPdf').addEventListener('click', exportPdf);
+$('btnPdf').addEventListener('click', function(){ if(viewMode === 'copy') exportCopyPdf(); else exportPdf(); });
 
 /* ---------- sidebar interactions ---------- */
 el.invList.addEventListener('click', function(e){
@@ -1489,6 +1603,7 @@ el.invList.addEventListener('click', function(e){
     if(found){
       inv = JSON.parse(JSON.stringify(found));
       dirty = false;
+      setViewMode('standard');
       renderInvoice(); renderSidebar();
       document.body.classList.remove('menu-open');
     }
@@ -1499,7 +1614,7 @@ el.invList.addEventListener('click', function(e){
 $('btnBackup').addEventListener('click', function(){
   if(dirty) saveInvoice(true);
   var payload = { app:'quill-and-ledger', version:1, exportedAt:new Date().toISOString(),
-                  business:business, payment:payDefaults, invoices:invoices, companies:companies };
+                  business:business, payment:payDefaults, invoices:invoices, companies:companies, designs:designs };
   var blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
   saveFile('quill-ledger-backup-' + todayISO() + '.json', blob).then(function(ok){
     if(ok) toast('Backup downloaded');
@@ -1529,6 +1644,10 @@ el.backupFile.addEventListener('change', function(){
         if(data.business) business = Object.assign(business, data.business);
         if(data.payment) payDefaults = Object.assign(payDefaults, data.payment);
         LS.set(K.INVOICES, invoices); LS.set(K.COMPANIES, companies); saveBusiness(); savePayDefaults();
+        if(Array.isArray(data.designs) && data.designs.length){
+          idbRun('readwrite', function(st){ data.designs.forEach(function(d){ if(d && d.id) st.put(d); }); return null; })
+            .then(loadDesigns).catch(function(){ toast('Copied designs could not be restored — storage blocked', true); });
+        }
         if(cloud) cloudWrite(cloudPushAll);
         inv = blankInvoice(); dirty = false;
         renderBusiness(); renderInvoice(); renderSidebar(); renderCompanies();
@@ -1569,15 +1688,23 @@ function importPdfFile(file){
   el.importWarn.hidden = true;
   el.importSeller.hidden = true;
   pendingSeller = null;
-  var keep = null;
+  var keep = null, keep2 = null, baseName = file.name.replace(/\.[^.]+$/, '');
   file.arrayBuffer().then(function(buf){
-    keep = buf.slice(0);
+    keep = buf.slice(0); keep2 = buf.slice(0);
     return extractPdf(buf);
   }).then(function(lines){
-    if(linesToDisplay(lines)) return finishImport(lines, false);
+    if(linesToDisplay(lines)){
+      finishImport(lines, false);
+      el.dropzone.classList.add('busy'); el.dzMain.textContent = 'Copying the design…';
+      return buildCopyFromPdf(keep2, (inv && inv.number) || baseName).then(adoptCopy);
+    }
     /* no text layer: a scanned PDF — render the pages and read them like a photo */
     el.dropzone.classList.add('busy');
-    return ocrPdfPages(keep).then(function(lines2){ finishImport(lines2, true); });
+    return ocrPdfPages(keep).then(function(lines2){
+      finishImport(lines2, true);
+      el.dropzone.classList.add('busy'); el.dzMain.textContent = 'Copying the design…';
+      return buildCopyFromCanvases(scanCanvases || [], (inv && inv.number) || baseName).then(adoptCopy);
+    });
   }).catch(function(err){
     console.error('PDF import failed', err);
     resetDropzone();
@@ -1585,6 +1712,13 @@ function importPdfFile(file){
   });
 }
 
+function adoptCopy(d){
+  resetDropzone();
+  if(!d || !d.pages.length) return;
+  openCopy(d);
+  saveCopy(true);
+  toast('Design copied — tap any text to edit it');
+}
 function isPdf(f){ return /\.pdf$/i.test(f.name) || f.type === 'application/pdf'; }
 function isImage(f){ return /^image\//i.test(f.type) || /\.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(f.name); }
 function importAnyFile(f){
@@ -1602,6 +1736,9 @@ function finishImport(lines, fromOcr){
   var display = linesToDisplay(lines);
   el.extractCard.hidden = false;
   el.extractText.textContent = display || '(no text could be read)';
+  /* on phones keep the raw text folded so the invoice stays near the top */
+  var det = el.extractCard.querySelector('details');
+  if(det && window.matchMedia) det.open = !matchMedia('(max-width:760px)').matches;
   el.importNote.textContent = fromOcr
     ? 'Read from an image — photos are harder to read than PDFs, so check every field, especially numbers. Anything missed is in the text below, ready to copy.'
     : 'Check the imported fields — extraction is best-effort. Anything missed is in the text below, ready to copy.';
@@ -1647,7 +1784,7 @@ function getOcrWorker(){
   return ocrWorkerP;
 }
 /* draw the image onto a canvas: EXIF orientation respected, sized for OCR, greyscale */
-function imageToCanvas(file){
+function imageToCanvas(file, colour){
   return new Promise(function(res, rej){
     var url = URL.createObjectURL(file), img = new Image();
     img.onload = function(){
@@ -1657,7 +1794,7 @@ function imageToCanvas(file){
       cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
       var ctx = cv.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.filter = 'grayscale(1) contrast(1.25)';
+      if(!colour) ctx.filter = 'grayscale(1) contrast(1.25)';
       ctx.drawImage(img, 0, 0, cv.width, cv.height);
       URL.revokeObjectURL(url);
       res(cv);
@@ -1706,12 +1843,16 @@ function importImageFile(file){
   el.importWarn.hidden = true;
   el.importSeller.hidden = true;
   pendingSeller = null;
-  Promise.all([imageToCanvas(file), getOcrWorker()]).then(function(r){
-    var cv = r[0], worker = r[1];
+  var colourCv = null;
+  Promise.all([imageToCanvas(file), imageToCanvas(file, true), getOcrWorker()]).then(function(r){
+    var cv = r[0], worker = r[2];
+    colourCv = r[1];
     el.dzMain.textContent = 'Reading text…';
     return worker.recognize(cv, { rotateAuto: true }).then(function(res){ return ocrToLines(res.data, cv.width, 0); });
   }).then(function(lines){
     finishImport(lines, true);
+    el.dropzone.classList.add('busy'); el.dzMain.textContent = 'Copying the design…';
+    return buildCopyFromCanvases([colourCv], (inv && inv.number) || file.name.replace(/\.[^.]+$/, '')).then(adoptCopy);
   }).catch(function(err){
     console.error('Photo import failed', err);
     resetDropzone();
@@ -1722,6 +1863,7 @@ function importImageFile(file){
 function ocrPdfPages(buf){
   return Promise.all([pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise, getOcrWorker()]).then(function(r){
     var doc = r[0], worker = r[1], all = [], chain = Promise.resolve();
+    scanCanvases = [];
     for(var p = 1; p <= Math.min(doc.numPages, 3); p++){
       (function(pn){
         chain = chain.then(function(){ return doc.getPage(pn); }).then(function(page){
@@ -1731,6 +1873,7 @@ function ocrPdfPages(buf){
           cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
           var ctx = cv.getContext('2d');
           ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+          scanCanvases.push(cv);
           return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function(){ return worker.recognize(cv, { rotateAuto: true }); })
             .then(function(res){
               all = all.concat(ocrToLines(res.data, cv.width, pn * 100000));
@@ -1748,6 +1891,18 @@ function ocrPdfPages(buf){
    there is a large horizontal gap. Two-column invoice layouts stay
    separated instead of being smashed into interleaved lines.
    Returns [{ y, segs:[{x, text}], text }] with a blank line between pages. */
+/* Some PDF fonts have no character map for "-", "(" and ")" and pdf.js
+   returns U+0000 for them; put back the likely character from context. */
+function fixNul(str){
+  if(str.indexOf('\u0000') < 0) return str;
+  return str.replace(/\u0000/g, function(m, i, all){
+    var a = all.charAt(i - 1), b = all.charAt(i + 1);
+    if(/\w/.test(a) && /\w/.test(b)) return '-';
+    if((!a || /\s/.test(a)) && /\S/.test(b)) return '(';
+    if(/\S/.test(a) && (!b || /[\s.,;:]/.test(b))) return ')';
+    return '-';
+  });
+}
 function extractPdf(buf){
   var task = pdfjsLib.getDocument({ data: buf, isEvalSupported: false });
   return task.promise.then(function(doc){
@@ -1790,7 +1945,7 @@ function extractPdf(buf){
                 charW = thisCharW;
               });
               if(cur) segs.push(cur);
-              segs.forEach(function(sg){ sg.text = sg.text.replace(/\s+/g,' ').trim(); });
+              segs.forEach(function(sg){ sg.text = fixNul(sg.text).replace(/\s+/g,' ').trim(); });
               segs = segs.filter(function(sg){ return sg.text; });
               if(segs.length){
                 acc.push({ y: row.y, segs: segs,
@@ -2536,6 +2691,529 @@ function fmtDateLong(iso){
 }
 
 /* ============================================================
+   COPY DESIGN — rebuild an imported invoice like-for-like.
+   Each page keeps a picture of the original; every piece of text
+   becomes an editable box placed exactly over it. Untouched text
+   stays as the original pixels; edited text is painted out with
+   the surrounding background colour and redrawn in matched size,
+   weight and colour. Designs are kept in this browser (IndexedDB).
+   ============================================================ */
+var copyDoc = null;          /* {id,name,updatedAt,pages:[{w,h,img,boxes:[...]}]} */
+var viewMode = 'standard';   /* 'standard' | 'copy' */
+var designs = [];            /* saved designs (full objects) */
+var copyDirty = false, copyTimer = null, selBox = null;
+var COPY_SCALE = 3;          /* render scale for the page picture (~216 dpi) */
+var scanCanvases = null;     /* colour canvases from the last photo / scanned PDF */
+
+/* ---------- tiny IndexedDB store ---------- */
+function idbOpen(){
+  if(idbOpen.p) return idbOpen.p;
+  idbOpen.p = new Promise(function(res, rej){
+    if(!window.indexedDB){ rej(new Error('no IndexedDB')); return; }
+    var r = indexedDB.open('ql-designs', 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore('designs', { keyPath:'id' }); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+  idbOpen.p.catch(function(){ idbOpen.p = null; });
+  return idbOpen.p;
+}
+function idbRun(mode, fn){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      var tx = db.transaction('designs', mode), req = fn(tx.objectStore('designs'));
+      tx.oncomplete = function(){ res(req ? req.result : undefined); };
+      tx.onerror = tx.onabort = function(){ rej(tx.error); };
+    });
+  });
+}
+function loadDesigns(){
+  return idbRun('readonly', function(st){ return st.getAll(); }).then(function(all){
+    designs = (all || []).sort(function(a,b){ return (b.updatedAt||0) - (a.updatedAt||0); });
+    renderSidebar();
+  }).catch(function(e){ console.warn('designs unavailable', e); });
+}
+function saveCopy(silent){
+  if(!copyDoc) return Promise.resolve();
+  copyDoc.updatedAt = Date.now();
+  var rec = JSON.parse(JSON.stringify(copyDoc));
+  return idbRun('readwrite', function(st){ return st.put(rec); }).then(function(){
+    copyDirty = false;
+    var i = designs.findIndex(function(d){ return d.id === rec.id; });
+    if(i >= 0) designs[i] = rec; else designs.unshift(rec);
+    designs.sort(function(a,b){ return (b.updatedAt||0) - (a.updatedAt||0); });
+    renderSidebar(); renderTop();
+    if(!silent) toast('Design saved');
+  }).catch(function(e){
+    console.error(e);
+    toast('Could not save the design — browser storage is full or blocked', true);
+  });
+}
+function markCopyDirty(){
+  copyDirty = true; renderTop();
+  clearTimeout(copyTimer);
+  copyTimer = setTimeout(function(){ if(copyDirty) saveCopy(true); }, 1200);
+}
+
+/* ---------- colour sampling ---------- */
+function hex(c){ return '#' + c.map(function(v){ return ('0' + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2); }).join(''); }
+function median(arr){ var a = arr.slice().sort(function(x,y){ return x-y; }); return a.length ? a[Math.floor(a.length/2)] : 255; }
+/* background = median of a thin ring around the box; text colour = the
+   inside pixels that differ most from that background */
+function sampleColours(ctx, W, H, x, y, w, h){
+  var pad = 3;
+  var x0 = Math.max(0, Math.floor(x - pad)), y0 = Math.max(0, Math.floor(y - pad));
+  var x1 = Math.min(W, Math.ceil(x + w + pad)), y1 = Math.min(H, Math.ceil(y + h + pad));
+  if(x1 - x0 < 2 || y1 - y0 < 2) return { bg:'#ffffff', fg:'#222222' };
+  var d = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data, iw = x1 - x0;
+  var rr = [], rg = [], rb = [], inner = [];
+  for(var yy = y0; yy < y1; yy++){
+    for(var xx = x0; xx < x1; xx++){
+      var i = ((yy - y0) * iw + (xx - x0)) * 4;
+      var inside = xx >= x && xx < x + w && yy >= y && yy < y + h;
+      if(inside) inner.push(d[i], d[i+1], d[i+2]);
+      else { rr.push(d[i]); rg.push(d[i+1]); rb.push(d[i+2]); }
+    }
+  }
+  var bg = [median(rr), median(rg), median(rb)];
+  var best = [], maxD = 0, k;
+  for(k = 0; k < inner.length; k += 3){
+    var dd = Math.abs(inner[k]-bg[0]) + Math.abs(inner[k+1]-bg[1]) + Math.abs(inner[k+2]-bg[2]);
+    if(dd > maxD) maxD = dd;
+  }
+  var cut = maxD * 0.6, sr = 0, sg = 0, sb = 0, n = 0;
+  for(k = 0; k < inner.length; k += 3){
+    var d2 = Math.abs(inner[k]-bg[0]) + Math.abs(inner[k+1]-bg[1]) + Math.abs(inner[k+2]-bg[2]);
+    if(d2 >= cut && d2 > 30){ sr += inner[k]; sg += inner[k+1]; sb += inner[k+2]; n++; }
+  }
+  var fg = n ? [sr/n, sg/n, sb/n] : (bg[0]+bg[1]+bg[2] > 384 ? [34,34,34] : [240,240,240]);
+  return { bg:hex(bg), fg:hex(fg) };
+}
+
+var NUM_RE = /^[-−(]?\s?[£$€]?\s?[\d,]+(\.\d+)?\)?\s?%?$/;
+function makeBox(o){
+  /* o: x, top, w, h, base, size (all pt), text, font, bold, italic, bg, fg */
+  return {
+    x:o.x, top:o.top, w:o.w, h:o.h, baseOff:o.base - o.top, size:o.size,
+    ox:o.x, otop:o.top, ow:o.w, oh:o.h,
+    text:o.text, orig:o.text, font:o.font || 'helvetica', bold:!!o.bold, italic:!!o.italic,
+    color:o.fg, bg:o.bg, align: NUM_RE.test(o.text) ? 'right' : 'left',
+    edited:false, deleted:false, added:false
+  };
+}
+
+/* ---------- build from a PDF with a text layer ---------- */
+function fontInfo(page, tc, item){
+  var st = (tc.styles && tc.styles[item.fontName]) || {};
+  var fam = String(st.fontFamily || ''), name = '', bold = false, italic = false;
+  try{
+    if(page.commonObjs.has(item.fontName)){
+      var f = page.commonObjs.get(item.fontName);
+      name = String((f && (f.name || f.loadedName)) || '');
+      bold = !!(f && (f.bold || f.black));
+      italic = !!(f && f.italic);
+    }
+  }catch(e){}
+  bold = bold || /bold|black|heavy|semibold|demi/i.test(name);
+  italic = italic || /italic|oblique/i.test(name);
+  var font = /courier|mono/i.test(name + ' ' + fam) ? 'courier'
+           : (/times|georgia|garamond|cambria|serif/i.test(name) || /^serif/i.test(fam)) ? 'times' : 'helvetica';
+  return { font:font, bold:bold, italic:italic };
+}
+function buildCopyFromPdf(buf, name){
+  return pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise.then(function(doc){
+    var pages = [], chain = Promise.resolve();
+    for(var p = 1; p <= Math.min(doc.numPages, 5); p++){
+      (function(pn){
+        chain = chain.then(function(){ return doc.getPage(pn); }).then(function(page){
+          var vp1 = page.getViewport({ scale: 1 });
+          var sc = Math.min(COPY_SCALE, 2800 / Math.max(vp1.width, vp1.height));
+          var vp = page.getViewport({ scale: sc });
+          var cv = document.createElement('canvas');
+          cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+          var ctx = cv.getContext('2d', { willReadFrequently: true });
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+          return page.render({ canvasContext: ctx, viewport: vp }).promise
+            .then(function(){ return page.getTextContent(); })
+            .then(function(tc){
+              /* text items -> positioned runs, merged into boxes along each line */
+              var runs = [];
+              tc.items.forEach(function(it){
+                if(!it.str || !it.str.trim()) return;
+                var tx = pdfjsLib.Util.transform(vp1.transform, it.transform);
+                var fh = Math.hypot(tx[2], tx[3]);
+                if(!fh || Math.abs(tx[1]) > fh * 0.05 || Math.abs(tx[2]) > fh * 0.05) return;   /* rotated text: leave as picture */
+                var fi = fontInfo(page, tc, it);
+                var lead = it.str.length - it.str.replace(/^\s+/, '').length;
+                var cw = it.width / Math.max(1, it.str.length);
+                runs.push({ x: tx[4] + lead * cw, base: tx[5], size: fh, w: Math.max(1, it.width - lead * cw - (it.str.length - it.str.replace(/\s+$/, '').length) * cw),
+                            text: it.str.trim(), font: fi.font, bold: fi.bold, italic: fi.italic });
+              });
+              runs.sort(function(a,b){ return Math.abs(a.base - b.base) > a.size * 0.3 ? a.base - b.base : a.x - b.x; });
+              var merged = [];
+              runs.forEach(function(r){
+                var m = merged.length ? merged[merged.length - 1] : null;
+                var gap = m ? r.x - (m.x + m.w) : 0;
+                if(m && Math.abs(m.base - r.base) < r.size * 0.3 && Math.abs(m.size - r.size) < r.size * 0.2 &&
+                   m.bold === r.bold && gap > -r.size * 0.3 && gap < r.size * 0.55){
+                  m.text += (gap > r.size * 0.12 ? ' ' : '') + r.text;
+                  m.w = Math.max(m.w, r.x + r.w - m.x);
+                }else merged.push(Object.assign({}, r));
+              });
+              var boxes = merged.map(function(m){
+                var top = m.base - m.size * 0.86, h = m.size * 1.1;
+                var col = sampleColours(ctx, cv.width, cv.height, m.x * sc, top * sc, m.w * sc, h * sc);
+                return makeBox({ x:m.x, top:top, w:m.w, h:h, base:m.base, size:m.size, text:fixNul(m.text),
+                                 font:m.font, bold:m.bold, italic:m.italic, bg:col.bg, fg:col.fg });
+              });
+              pages.push({ w: vp1.width, h: vp1.height, img: cv.toDataURL('image/jpeg', 0.92), boxes: boxes });
+            });
+        });
+      })(p);
+    }
+    return chain.then(function(){ return newDesign(name, pages); });
+  });
+}
+
+/* ---------- build from a photo or scanned page (OCR word boxes) ---------- */
+function buildCopyFromCanvases(canvases, name){
+  return getOcrWorker().then(function(worker){
+    var pages = [], chain = Promise.resolve();
+    canvases.forEach(function(cv){
+      chain = chain.then(function(){ return worker.recognize(cv); }).then(function(res){
+        var W = 595, k = W / cv.width, H = cv.height * k;
+        var ctx = cv.getContext('2d', { willReadFrequently: true });
+        var boxes = [];
+        (res.data.lines || []).forEach(function(line){
+          var ws = (line.words || []).filter(function(w){ return (w.text || '').trim() && w.confidence >= 45; });
+          if(!ws.length) return;
+          ws.sort(function(a,b){ return a.bbox.x0 - b.bbox.x0; });
+          var rowH = (line.rowAttributes && line.rowAttributes.row_height) ||
+                     median(ws.map(function(w){ return w.bbox.y1 - w.bbox.y0; })) / 0.75;
+          var segs = [], cur = null;
+          ws.forEach(function(w){
+            if(cur && w.bbox.x0 - cur.x1 > rowH * 0.9){ segs.push(cur); cur = null; }
+            if(cur){ cur.text += ' ' + w.text.trim(); cur.x1 = w.bbox.x1; cur.y0 = Math.min(cur.y0, w.bbox.y0); cur.y1 = Math.max(cur.y1, w.bbox.y1); cur.bold = cur.bold && !!w.is_bold; }
+            else cur = { text:w.text.trim(), x0:w.bbox.x0, x1:w.bbox.x1, y0:w.bbox.y0, y1:w.bbox.y1, bold:!!w.is_bold };
+          });
+          if(cur) segs.push(cur);
+          var bl = line.baseline;
+          segs.forEach(function(s){
+            var basePx = s.y1;
+            if(bl && bl.x1 !== bl.x0){
+              var mid = (s.x0 + s.x1) / 2;
+              basePx = bl.y0 + (bl.y1 - bl.y0) * (mid - bl.x0) / (bl.x1 - bl.x0);
+            }
+            var sizePx = Math.max(6, rowH * 0.92);
+            var topPx = Math.min(s.y0, basePx - sizePx * 0.86) - 2, botPx = Math.max(s.y1, basePx + sizePx * 0.24) + 2;
+            var col = sampleColours(ctx, cv.width, cv.height, s.x0 - 2, topPx, s.x1 - s.x0 + 4, botPx - topPx);
+            boxes.push(makeBox({ x:(s.x0 - 2) * k, top:topPx * k, w:(s.x1 - s.x0 + 4) * k, h:(botPx - topPx) * k,
+                                 base:basePx * k, size:sizePx * k, text:s.text, font:'helvetica', bold:s.bold,
+                                 italic:false, bg:col.bg, fg:col.fg }));
+          });
+        });
+        pages.push({ w: W, h: H, img: cv.toDataURL('image/jpeg', 0.9), boxes: boxes });
+      });
+    });
+    return chain.then(function(){ return newDesign(name, pages); });
+  });
+}
+function newDesign(name, pages){
+  return { id: 'dz_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+           name: name || 'Copied invoice', createdAt: Date.now(), updatedAt: Date.now(), pages: pages };
+}
+function openCopy(d){
+  copyDoc = d; selBox = null; copyDirty = false;
+  setViewMode('copy');
+}
+
+/* ---------- view mode ---------- */
+function setViewMode(m){
+  viewMode = (m === 'copy' && copyDoc) ? 'copy' : 'standard';
+  var copy = viewMode === 'copy';
+  $('sheet').hidden = copy;
+  $('copyView').hidden = !copy;
+  ['statusSel','btnDuplicate','btnPaid'].forEach(function(id){ $(id).hidden = copy; });
+  $('btnAddText').hidden = !copy;
+  $('btnMode').hidden = !copyDoc;
+  $('btnMode').textContent = copy ? 'Standard layout' : 'Copied design';
+  showTools(null);
+  if(copy) renderCopy();
+  renderTop(); renderSidebar();
+}
+
+/* ---------- editor ---------- */
+var FONT_CSS = { helvetica:'Helvetica, Arial, sans-serif', times:'"Times New Roman", Times, serif', courier:'"Courier New", Courier, monospace' };
+function renderCopy(){
+  var wrap = $('copyPages');
+  wrap.innerHTML = '';
+  if(!copyDoc) return;
+  var avail = Math.min(wrap.clientWidth || 760, 900);
+  copyDoc.pages.forEach(function(pg, pi){
+    var k = avail / pg.w;
+    var pe = document.createElement('div');
+    pe.className = 'copy-page';
+    pe.style.width = avail + 'px'; pe.style.height = (pg.h * k) + 'px';
+    pe.style.backgroundImage = 'url(' + pg.img + ')';
+    pg.boxes.forEach(function(b, bi){
+      var ref = pi + ':' + bi;
+      if((b.edited || b.deleted) && !b.added){
+        var cov = document.createElement('div');
+        cov.className = 'cover' + (b.deleted ? ' gone' : '');
+        cov.dataset.ref = ref;
+        cov.style.left = (b.ox * k) + 'px'; cov.style.top = (b.otop * k) + 'px';
+        cov.style.width = (b.ow * k) + 'px'; cov.style.height = (b.oh * k) + 'px';
+        cov.style.background = b.bg; cov.style.boxShadow = '0 0 0 ' + Math.max(1, 1.5 * k) + 'px ' + b.bg;
+        if(b.deleted) cov.title = 'Removed text — tap to restore';
+        pe.appendChild(cov);
+      }
+      if(b.deleted) return;
+      var e = document.createElement('div');
+      e.className = 'cbox' + (b.edited || b.added ? ' live' : '');
+      e.dataset.ref = ref;
+      e.contentEditable = 'true';
+      e.spellcheck = false;
+      e.textContent = b.text;
+      styleBox(e, b, pg, k);
+      pe.appendChild(e);
+    });
+    wrap.appendChild(pe);
+  });
+  if(selBox){
+    var cur = wrap.querySelector('.cbox[data-ref="' + selBox + '"]');
+    if(cur) cur.classList.add('sel');
+  }
+}
+function styleBox(e, b, pg, k){
+  e.style.top = (b.top * k) + 'px';
+  e.style.height = (b.h * k) + 'px';
+  e.style.lineHeight = (b.h * k) + 'px';
+  e.style.minWidth = (b.w * k) + 'px';
+  if(b.align === 'right'){ e.style.left = 'auto'; e.style.right = ((pg.w - b.x - b.w) * k) + 'px'; e.style.textAlign = 'right'; }
+  else { e.style.right = 'auto'; e.style.left = (b.x * k) + 'px'; e.style.textAlign = 'left'; }
+  e.style.fontSize = (b.size * k) + 'px';
+  e.style.fontFamily = FONT_CSS[b.font] || FONT_CSS.helvetica;
+  e.style.fontWeight = b.bold ? '700' : '400';
+  e.style.fontStyle = b.italic ? 'italic' : 'normal';
+  e.style.color = (b.edited || b.added) ? b.color : 'transparent';
+  e.style.caretColor = b.color;
+}
+function boxAt(ref){
+  if(!copyDoc || !ref) return null;
+  var p = ref.split(':'), pg = copyDoc.pages[+p[0]];
+  return pg ? { pg:pg, b:pg.boxes[+p[1]], k: null } : null;
+}
+function pageScale(pg){
+  var wrap = $('copyPages');
+  return Math.min(wrap.clientWidth || 760, 900) / pg.w;
+}
+/* first change to a box: it goes "live" — original painted out, text drawn */
+function goLive(ref, el2){
+  var o = boxAt(ref); if(!o) return;
+  if(!o.b.edited && !o.b.added){
+    o.b.edited = true;
+    var keepCaret = document.activeElement === el2;
+    renderCopy();
+    var again = $('copyPages').querySelector('.cbox[data-ref="' + ref + '"]');
+    if(again && keepCaret){
+      again.focus();
+      var r = document.createRange(); r.selectNodeContents(again); r.collapse(false);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+  }
+}
+$('copyPages').addEventListener('input', function(e){
+  var t = e.target.closest('.cbox'); if(!t) return;
+  var o = boxAt(t.dataset.ref); if(!o) return;
+  o.b.text = t.textContent.replace(/\s*\n\s*/g, ' ');
+  if(!o.b.edited && !o.b.added && o.b.text !== o.b.orig) goLive(t.dataset.ref, t);
+  if(selBox === t.dataset.ref) $('toolText').value = o.b.text;
+  markCopyDirty();
+});
+$('copyPages').addEventListener('keydown', function(e){
+  if(e.target.closest('.cbox') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+});
+$('copyPages').addEventListener('paste', function(e){
+  if(!e.target.closest('.cbox')) return;
+  e.preventDefault();
+  var txt = (e.clipboardData || window.clipboardData).getData('text').replace(/\s*\n\s*/g, ' ');
+  document.execCommand('insertText', false, txt);
+});
+$('copyPages').addEventListener('focusin', function(e){
+  var t = e.target.closest('.cbox'); if(t) showTools(t.dataset.ref);
+});
+$('copyPages').addEventListener('click', function(e){
+  var c = e.target.closest('.cover.gone');
+  if(c){
+    var o = boxAt(c.dataset.ref); if(!o) return;
+    o.b.deleted = false; o.b.edited = o.b.text !== o.b.orig || o.b.x !== o.b.ox || o.b.top !== o.b.otop;
+    renderCopy(); markCopyDirty(); toast('Text restored');
+    return;
+  }
+  if(!e.target.closest('.cbox')) showTools(null);
+});
+
+/* ---------- toolbar for the selected text ---------- */
+function showTools(ref){
+  selBox = ref;
+  var bar = $('copyTools');
+  document.querySelectorAll('.cbox.sel').forEach(function(x){ x.classList.remove('sel'); });
+  var o = boxAt(ref);
+  if(!o || viewMode !== 'copy'){ bar.hidden = true; return; }
+  var cur = $('copyPages').querySelector('.cbox[data-ref="' + ref + '"]');
+  if(cur) cur.classList.add('sel');
+  bar.hidden = false;
+  $('toolText').value = o.b.text;
+  $('toolColour').value = /^#[0-9a-f]{6}$/i.test(o.b.color) ? o.b.color : '#222222';
+  $('toolBold').classList.toggle('on', o.b.bold);
+  $('toolAlign').textContent = o.b.align === 'right' ? 'Align ⇥' : 'Align ⇤';
+  $('toolReset').hidden = !(o.b.edited && !o.b.added);
+}
+function changeSel(fn){
+  var o = boxAt(selBox); if(!o) return;
+  fn(o.b);
+  if(!o.b.added) o.b.edited = true;
+  var ref = selBox;
+  renderCopy(); showTools(ref); markCopyDirty();
+}
+['toolSmaller','toolBigger','toolBold','toolAlign','toolDelete','toolReset','toolUp','toolDown','toolLeft','toolRight'].forEach(function(id){
+  $(id).addEventListener('mousedown', function(e){ e.preventDefault(); });   /* keep the caret in the text */
+});
+$('toolText').addEventListener('input', function(){
+  var v = $('toolText').value;
+  changeSel(function(b){ b.text = v; });
+  $('toolText').focus();
+});
+$('toolSmaller').addEventListener('click', function(){ changeSel(function(b){ b.size = Math.max(4, +(b.size * 0.92).toFixed(2)); b.h = b.size * 1.1; b.baseOff = b.size * 0.86; }); });
+$('toolBigger').addEventListener('click', function(){ changeSel(function(b){ b.size = +(b.size * 1.08).toFixed(2); b.h = b.size * 1.1; b.baseOff = b.size * 0.86; }); });
+$('toolBold').addEventListener('click', function(){ changeSel(function(b){ b.bold = !b.bold; }); });
+$('toolAlign').addEventListener('click', function(){ changeSel(function(b){ b.align = b.align === 'right' ? 'left' : 'right'; }); });
+$('toolColour').addEventListener('input', function(){ var v = $('toolColour').value; changeSel(function(b){ b.color = v; }); });
+function nudge(dx, dy){ changeSel(function(b){ b.x += dx; b.top += dy; }); }
+$('toolUp').addEventListener('click', function(){ nudge(0, -1); });
+$('toolDown').addEventListener('click', function(){ nudge(0, 1); });
+$('toolLeft').addEventListener('click', function(){ nudge(-1, 0); });
+$('toolRight').addEventListener('click', function(){ nudge(1, 0); });
+$('toolDelete').addEventListener('click', function(){
+  var o = boxAt(selBox); if(!o) return;
+  if(o.b.added){ o.pg.boxes.splice(o.pg.boxes.indexOf(o.b), 1); }
+  else o.b.deleted = true;
+  showTools(null); renderCopy(); markCopyDirty();
+  toast(o.b.added ? 'Text removed' : 'Text removed — tap the blank area to bring it back');
+});
+$('toolReset').addEventListener('click', function(){
+  var o = boxAt(selBox); if(!o) return;
+  var b = o.b;
+  b.text = b.orig; b.x = b.ox; b.top = b.otop; b.w = b.ow; b.h = b.oh; b.edited = false;
+  showTools(null); renderCopy(); markCopyDirty();
+  toast('Back to the original');
+});
+$('toolDone').addEventListener('click', function(){ showTools(null); if(document.activeElement) document.activeElement.blur(); });
+
+/* drag the selected box by its edge (pointer events: mouse and touch) */
+(function(){
+  var drag = null;
+  $('copyPages').addEventListener('pointerdown', function(e){
+    var t = e.target.closest('.cbox.sel'); if(!t) return;
+    var r = t.getBoundingClientRect();
+    var edge = Math.min(e.clientX - r.left, r.right - e.clientX, e.clientY - r.top, r.bottom - e.clientY);
+    if(edge > 6) return;   /* inside the text: normal editing */
+    var o = boxAt(t.dataset.ref); if(!o) return;
+    e.preventDefault();
+    drag = { ref:t.dataset.ref, x:e.clientX, y:e.clientY, bx:o.b.x, by:o.b.top, k:pageScale(o.pg), el:t };
+    t.setPointerCapture(e.pointerId);
+  });
+  $('copyPages').addEventListener('pointermove', function(e){
+    if(!drag) return;
+    var o = boxAt(drag.ref); if(!o) return;
+    o.b.x = drag.bx + (e.clientX - drag.x) / drag.k;
+    o.b.top = drag.by + (e.clientY - drag.y) / drag.k;
+    if(o.b.align === 'right') drag.el.style.right = ((o.pg.w - o.b.x - o.b.w) * drag.k) + 'px';
+    else drag.el.style.left = (o.b.x * drag.k) + 'px';
+    drag.el.style.top = (o.b.top * drag.k) + 'px';
+  });
+  function end(){
+    if(!drag) return;
+    var ref = drag.ref; drag = null;
+    var o = boxAt(ref);
+    if(o && !o.b.added) o.b.edited = true;
+    renderCopy(); showTools(ref); markCopyDirty();
+  }
+  $('copyPages').addEventListener('pointerup', end);
+  $('copyPages').addEventListener('pointercancel', end);
+})();
+
+$('btnAddText').addEventListener('click', function(){
+  if(!copyDoc) return;
+  var pg = copyDoc.pages[0];
+  var nb = makeBox({ x: pg.w * 0.35, top: pg.h * 0.1, w: 120, h: 14, base: pg.h * 0.1 + 11, size: 12,
+                     text: 'New text', font: 'helvetica', bold: false, italic: false, bg: '#ffffff', fg: '#222222' });
+  nb.added = true; nb.align = 'left';
+  pg.boxes.push(nb);
+  var ref = '0:' + (pg.boxes.length - 1);
+  renderCopy(); markCopyDirty();
+  var el2 = $('copyPages').querySelector('.cbox[data-ref="' + ref + '"]');
+  if(el2){ el2.scrollIntoView({ block:'center' }); el2.focus(); document.execCommand('selectAll', false, null); }
+  showTools(ref);
+  toast('Type your text, then drag its edge to move it');
+});
+$('btnMode').addEventListener('click', function(){ setViewMode(viewMode === 'copy' ? 'standard' : 'copy'); });
+var resizeT = null;
+window.addEventListener('resize', function(){
+  if(viewMode !== 'copy') return;
+  clearTimeout(resizeT); resizeT = setTimeout(function(){ var r = selBox; renderCopy(); showTools(r); }, 150);
+});
+
+/* ---------- export: original picture + painted-out edits + real text ---------- */
+var WIN = { '€':128, '‚':130, '„':132, '…':133, '•':149, '‘':145, '’':146, '“':147, '”':148, '–':150, '—':151, '™':153 };
+function pdfSafe(s){
+  return String(s).replace(/[^\x00-\xff]/g, function(c){ return WIN[c] ? String.fromCharCode(WIN[c]) : (c === '−' ? '-' : '?'); });
+}
+function loadImg(src){
+  return new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = src; });
+}
+function exportCopyPdf(){
+  var J = window.jspdf && window.jspdf.jsPDF;
+  if(!J || !copyDoc){ toast('PDF tools did not load', true); return; }
+  var first = copyDoc.pages[0];
+  var doc = new J({ unit:'pt', format:[first.w, first.h], orientation: first.w > first.h ? 'l' : 'p' });
+  var chain = Promise.resolve();
+  copyDoc.pages.forEach(function(pg, pi){
+    chain = chain.then(function(){ return loadImg(pg.img); }).then(function(im){
+      if(pi) doc.addPage([pg.w, pg.h], pg.w > pg.h ? 'l' : 'p');
+      var cv = document.createElement('canvas');
+      cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+      var ctx = cv.getContext('2d'), k = cv.width / pg.w;
+      ctx.drawImage(im, 0, 0);
+      pg.boxes.forEach(function(b){
+        if((b.edited || b.deleted) && !b.added){
+          var pad = 1.5;
+          ctx.fillStyle = b.bg;
+          ctx.fillRect((b.ox - pad) * k, (b.otop - pad) * k, (b.ow + 2*pad) * k, (b.oh + 2*pad) * k);
+        }
+      });
+      doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pg.w, pg.h);
+      pg.boxes.forEach(function(b){
+        if(b.deleted || !(b.edited || b.added) || !String(b.text).trim()) return;
+        doc.setFont(b.font || 'helvetica', b.bold && b.italic ? 'bolditalic' : b.bold ? 'bold' : b.italic ? 'italic' : 'normal');
+        doc.setFontSize(b.size);
+        var c = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(b.color) || [0,'22','22','22'];
+        doc.setTextColor(parseInt(c[1],16), parseInt(c[2],16), parseInt(c[3],16));
+        var y = b.top + b.baseOff;
+        if(b.align === 'right') doc.text(pdfSafe(b.text), b.x + b.w, y, { align:'right' });
+        else doc.text(pdfSafe(b.text), b.x, y);
+      });
+    });
+  });
+  chain.then(function(){
+    var fname = String(copyDoc.name || 'invoice').replace(/\.pdf$/i,'').replace(/[^\w\-\. ]+/g,'_') + '.pdf';
+    return saveFile(fname, doc.output('blob')).then(function(ok){ if(ok) toast('Downloaded ' + fname); });
+  }).catch(function(e){ console.error(e); toast('PDF download failed', true); });
+}
+
+$('copyName').addEventListener('input', function(){ if(copyDoc){ copyDoc.name = $('copyName').value; markCopyDirty(); } });
+
+/* ============================================================
    Boot
    ============================================================ */
 inv = blankInvoice();
@@ -2543,6 +3221,7 @@ renderBusiness();
 renderInvoice();
 renderSidebar();
 renderCompanies();
+loadDesigns();
 setSync(hasClaude ? '' : 'saved on this device');
 initCloud();
 
