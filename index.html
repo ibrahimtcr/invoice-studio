@@ -1206,8 +1206,10 @@ function renderSidebar(){
       '<div class="row1"><span class="num"></span><span class="total"></span></div>' +
       '<div class="row2"><span class="client"></span><span class="meta"><span class="date"></span></span></div>' +
       '<span class="item-actions">' +
-        '<button class="mini-btn" data-ddup="' + d.id + '" title="Use again as a new copy">⧉</button>' +
-        '<button class="mini-btn danger" data-ddel="' + d.id + '" title="Delete">✕</button></span>';
+        '<button class="mini-btn" title="Use again as a new copy">⧉</button>' +
+        '<button class="mini-btn danger" title="Delete">✕</button></span>';
+    div.querySelector('.mini-btn').dataset.ddup = d.id;
+    div.querySelector('.mini-btn.danger').dataset.ddel = d.id;
     div.querySelector('.num').textContent = d.name || 'Copied invoice';
     div.querySelector('.total').textContent = (d.pages || []).length + ' pg';
     div.querySelector('.client').textContent = 'Copied design';
@@ -1260,15 +1262,21 @@ function renderInvoiceList(){
     var div = document.createElement('div');
     div.className = 'inv-item' + (inv && inv.id === v.id ? ' active' : '');
     div.dataset.id = v.id;
+    /* fixed markup only; every value from storage goes in via textContent/dataset */
     div.innerHTML =
-      '<div class="row1"><span class="num"></span><span class="total">' + symv +
-        t.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span></div>' +
+      '<div class="row1"><span class="num"></span><span class="total"></span></div>' +
       '<div class="row2"><span class="client"></span><span class="meta">' +
-        '<span class="date">' + fmtDateShort(v.date) + '</span>' +
-        '<span class="stamp ' + v.status.toLowerCase() + '">' + v.status + '</span></span></div>' +
+        '<span class="date"></span><span class="stamp"></span></span></div>' +
       '<span class="item-actions">' +
-        '<button class="mini-btn" data-dup="' + v.id + '" title="Duplicate">⧉</button>' +
-        '<button class="mini-btn danger" data-del="' + v.id + '" title="Delete">✕</button></span>';
+        '<button class="mini-btn" title="Duplicate">⧉</button>' +
+        '<button class="mini-btn danger" title="Delete">✕</button></span>';
+    var stat = /^(Draft|Sent|Paid)$/.test(v.status) ? v.status : 'Draft';
+    div.querySelector('.total').textContent = symv + t.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+    div.querySelector('.date').textContent = fmtDateShort(String(v.date || ''));
+    div.querySelector('.stamp').textContent = stat;
+    div.querySelector('.stamp').classList.add(stat.toLowerCase());
+    div.querySelector('.mini-btn').dataset.dup = v.id;
+    div.querySelector('.mini-btn.danger').dataset.del = v.id;
     div.querySelector('.num').textContent = v.number || '—';
     div.querySelector('.client').textContent = (v.client && v.client.name) || 'No client';
     el.invList.appendChild(div);
@@ -1645,7 +1653,7 @@ el.backupFile.addEventListener('change', function(){
         if(data.payment) payDefaults = Object.assign(payDefaults, data.payment);
         LS.set(K.INVOICES, invoices); LS.set(K.COMPANIES, companies); saveBusiness(); savePayDefaults();
         if(Array.isArray(data.designs) && data.designs.length){
-          idbRun('readwrite', function(st){ data.designs.forEach(function(d){ if(d && d.id) st.put(d); }); return null; })
+          idbRun('readwrite', function(st){ data.designs.filter(validDesign).forEach(function(d){ st.put(d); }); return null; })
             .then(loadDesigns).catch(function(){ toast('Copied designs could not be restored — storage blocked', true); });
         }
         if(cloud) cloudWrite(cloudPushAll);
@@ -2917,6 +2925,20 @@ function buildCopyFromCanvases(canvases, name){
     });
     return chain.then(function(){ return newDesign(name, pages); });
   });
+}
+/* shape check for designs coming from a backup file */
+function validDesign(d){
+  var hexRe = /^#[0-9a-f]{6}$/i;
+  return !!d && typeof d.id === 'string' && /^dz_[a-z0-9]+$/.test(d.id) && Array.isArray(d.pages) &&
+    d.pages.every(function(pg){
+      return pg && typeof pg.img === 'string' && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+\/=]+$/.test(pg.img) &&
+        isFinite(pg.w) && isFinite(pg.h) && Array.isArray(pg.boxes) &&
+        pg.boxes.every(function(b){
+          return b && typeof b.text === 'string' && hexRe.test(b.color) && hexRe.test(b.bg) &&
+            ['x','top','w','h','size','ox','otop','ow','oh','baseOff'].every(function(k){ return isFinite(b[k]); }) &&
+            /^(helvetica|times|courier)$/.test(b.font) && /^(left|right)$/.test(b.align);
+        });
+    });
 }
 function newDesign(name, pages){
   return { id: 'dz_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
